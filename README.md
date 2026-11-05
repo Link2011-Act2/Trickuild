@@ -7,7 +7,7 @@ AndroidアプリやAndroid Libraryを作るプロジェクトではありませ�
 ## Phase 1の機能
 
 - `Major.Minor[.Patch][-channel][+build]` の解析。整数文字列として `2.1` と `2.10` を区別
-- 手動コードネーム、実行時刻、Gitに依存しない内容ハッシュによるビルド番号
+- 任意のコードネーム（省略時はフォールバック）、実行時刻、Gitに依存しない内容ハッシュによるビルド番号
 - 既定で無効の決定的な性格抽選
 - Android公式Variant/Sources APIによるJavaソース生成。versionCodeは変更しない
 - Configuration Cache、並列プロジェクト、複数variantに対応
@@ -97,6 +97,30 @@ SDKやAGPの適用は不要です。動作例は `consumers/jvm` と `consumers/
 .\gradlew.bat -p consumers/android :app:assembleDebug --configuration-cache
 ```
 
+## Codenameの設定
+
+`codename` が未設定・空文字・空白のみの場合、既定のフォールバック名 `Youngchun` を使用します。
+`fallbackCodename` で自由に変更でき、空白以外を含む `codename` の明示指定を優先します。
+トリッカル関連の命名を使う必要はありません。
+
+```kotlin
+trickuild {
+    versionName.set("1.0.0")
+    // codename未指定・空文字・空白のみの場合はfallbackCodenameを使用します。
+    fallbackCodename.set("Unnamed") // この行も省略するとYoungchun
+    // codename.set("Epica") // 指定するとfallbackCodenameより優先
+}
+```
+
+この例の実効コードネームは `Unnamed` です。設定値そのものは書き換えず、
+ビルド番号、生成クラスの `CODE_NAME`、診断タスク `trickuildInfo` に同じ実効値を使用します。
+`fallbackCodename` に空文字・空白のみ（または制御文字）を明示すると、設定エラーになります。
+Gradle Propertyの `set(null as String?)` は明示値を解除し、既定値があればそれを使用します。
+値のないProviderを設定した場合も、未設定として安全にフォールバックします。
+
+Personality Rouletteは独立したオプション機能で、既定では無効です。
+コードネームやフォールバックを変えても、抽選の有効・無効や抽選結果は変わりません。
+
 ## 生成クラスとBuildConfigからの移行
 
 Androidでは `${android.namespace}.TrickuildMetadata`、JVMでは
@@ -116,7 +140,7 @@ val number = TrickuildMetadata.PERSONALITY_NUMBER
 `BUILD_NUMBER`、`CODE_NAME`、`PERSONALITY_SEED` は `public static final String`、
 `PERSONALITY_NUMBER` は `public static final int` です。
 `BUILD_NUMBER` はbuildNumber有効時、性格フィールドはRoulette有効時に生成します。
-`CODE_NAME` は常に生成し、ビルド番号を無効にしてコードネームを省略した場合は空文字です。
+`CODE_NAME` は常に実効コードネームを生成し、ビルド番号やRouletteの無効時にもフォールバックを適用します。
 
 既存コードの `BuildConfig.BUILD_NUMBER` 等を `TrickuildMetadata.BUILD_NUMBER` 等に変更してください。
 `BuildConfig.VERSION_NAME` / `VERSION_CODE` 等はそのまま使用できます。
@@ -135,7 +159,7 @@ Phase 1ではBuildConfigの同名フィールドを自動追加しません。
 Epica-d2.2.0-261025-1920-a3f2b
 ```
 
-- Codenameは手動指定。抽選からコードネームを選択しない
+- Codenameは明示指定を優先し、未設定・blankなら `fallbackCodename`（既定: `Youngchun`）。抽選から選択しない
 - `IntDev` で始まるチャンネルは大文字小文字を問わず `d`、その他は `v`
 - 数値バージョン部分だけを使用し、チャンネルと `+build` を除外
 - 日時は実際にメタデータ生成タスクを実行した時刻。既定のタイムゾーンは設定時のシステムゾーン
@@ -239,33 +263,79 @@ OSSライセンス、APK命名、Release署名検証は未実装です。
 を設定すれば、`plugins { id("dev.trickuild") version "0.1.0-SNAPSHOT" }` で導入できます。
 公開済みJARから利用する場合はCore/アダプターも推移依存として解決され、included buildは不要です。
 
-`jitpack.yml` はJDK 21でテストと `publishToMavenLocal` を行い、
-`-Pgroup` / `-Pversion` でJitPackのリポジトリ座標・要求バージョンを渡す設定です。
-GitHubへPushした後のJitPackビルドは別途検証してください。実際の公開成功はまだ保証していません。
-JitPackは複数モジュールの座標になるため、Plugin Markerの自動探索に依存せず、次の方式を使用します。
+## JitPackからの導入
+
+2026-10-27に、公開済みコミット `c6305ca29f2e8e15a50348f64d4bbe077065cbf0` をJitPackでビルドし、
+POM・JARと、Maven Localやincluded buildを使用しない独立consumerからの利用を検証しました。
+JitPackのバージョンには、この確認済みコミットSHAを指定します。
+
+利用側の `settings.gradle.kts`:
 
 ```kotlin
-// 利用側 settings.gradle.kts。<tag-or-commit> はPush後に検証する実在のバージョンへ置換。
 pluginManagement {
+    val trickuildVersion = "c6305ca29f2e8e15a50348f64d4bbe077065cbf0"
     repositories {
-        maven("https://jitpack.io")
-        google()
+        google() // Androidを使わない場合は不要
         mavenCentral()
         gradlePluginPortal()
+        maven("https://jitpack.io") {
+            content {
+                includeModule("com.github.Link2011-Act2.Trickuild", "trickuild-gradle-plugin")
+                includeModule("com.github.Link2011-Act2.Trickuild", "trickuild-core")
+                includeModule("com.github.Link2011-Act2.Trickuild", "trickuild-android-adapter")
+            }
+            metadataSources {
+                mavenPom()
+                ignoreGradleMetadataRedirection()
+            }
+        }
     }
     resolutionStrategy {
         eachPlugin {
             if (requested.id.id == "dev.trickuild") {
-                useModule("com.github.Link2011-Act2.Trickuild:trickuild-gradle-plugin:${requested.version}")
+                useModule("com.github.Link2011-Act2.Trickuild:trickuild-gradle-plugin:${requested.version ?: trickuildVersion}")
             }
         }
     }
+    plugins { id("dev.trickuild") version trickuildVersion }
 }
 ```
 
-利用側は `plugins { id("dev.trickuild") version "<tag-or-commit>" }` とします。
-プラグインの依存解決なので、リポジトリは `dependencyResolutionManagement` ではなく
-`pluginManagement.repositories` へ指定します。
+利用側の `build.gradle.kts` では `plugins { id("dev.trickuild") }` と指定し、
+上記「Kotlin DSLでの導入」と同じ `trickuild { ... }` を設定します。
+バージョンを利用側のpluginsブロックで指定する場合は
+`id("dev.trickuild") version "c6305ca29f2e8e15a50348f64d4bbe077065cbf0"` とも書けます。
+プラグインの依存は `pluginManagement.repositories` から解決されるため、
+`dependencyResolutionManagement.repositories` への追加だけでは不十分です。
+
+`V` を上記コミットSHAとした、実際にJitPackから取得できた座標は次のとおりです。
+
+| 内容 | JitPack座標 |
+| --- | --- |
+| 実装 | `com.github.Link2011-Act2.Trickuild:trickuild-gradle-plugin:V` |
+| Core | `com.github.Link2011-Act2.Trickuild:trickuild-core:V` |
+| Androidアダプター | `com.github.Link2011-Act2.Trickuild:trickuild-android-adapter:V` |
+| Plugin MarkerのPOM | `com.github.Link2011-Act2.Trickuild:dev.trickuild.gradle.plugin:V` |
+
+実装POMは同じ `V` のCoreとAndroidアダプターに依存します。MarkerはPOMであり、実装モジュールを参照します。
+JitPack上ではMarkerのグループも上記へ移されるため、Gradleが標準で探す
+`dev.trickuild:dev.trickuild.gradle.plugin:V` は見つかりません。
+上の `resolutionStrategy` はIDを実装モジュールへ対応付けます。
+移動後のMarkerモジュールへ対応付ける方法も独立JVM consumerで確認しました。
+
+今回のJitPack `.module` は各モジュールの `component` を集約座標
+`com.github.Link2011-Act2:Trickuild:V` と記載し、`sourcesElements` のURLには通常のJAR名を記載しています。
+実装・Core・アダプターのPOMと直接の `-sources.jar` はそれぞれ取得できました。
+Gradle 9.3.1は通常のmetadata設定でもJVM consumerを実行できましたが、上の例はこの不整合を避け、
+POMから推移依存を解決する設定です。POM優先はこの3モジュールだけに限定し、他ライブラリのmetadata解決を変更しません。Gradleの仕様は [metadata sources](https://docs.gradle.org/current/userguide/supported_metadata_formats.html) を参照してください。
+同じJitPackリポジトリから他のライブラリも取得する場合は、この宣言の後に通常のmetadata設定のリポジトリ宣言を追加してください。
+sources JARは `sources` classifierを指定して直接取得できますが、問題のある `.module` のsources variantを使うと通常のバイナリJARが選ばれます。
+
+ソースの既定バージョン `0.1.0-SNAPSHOT` はMaven Local用です。`jitpack.yml` はJDK 21を選び、
+JitPackから渡される `$VERSION` で公開バージョンを上書きします。タグ指定もJitPackの仕組み上は可能ですが、
+この検証ではタグを作成せず、上記コミットSHAだけを実際に検証しています。
+独立検証用プロジェクトと結果は [Phase 1.5検証記録](docs/phase-1.5-jitpack-verification.md) を参照してください。
+Markerとmetadataの原因調査、および回避策の適用範囲は [Phase 1.6検証記録](docs/phase-1.6-publication-verification.md) に記載しています。
 
 検証環境・結果・設計判断は [Phase 1検証記録](docs/phase-1-verification.md) にまとめています。
 

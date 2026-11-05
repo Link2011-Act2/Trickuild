@@ -1,5 +1,7 @@
 # Phase 1 検証記録
 
+JitPackの公開検証については、後日の [Phase 1.5 検証記録](phase-1.5-jitpack-verification.md) を参照してください。
+
 検証日: 2026-10-25（日本時間）。Windows / JDK 21。
 既存の `dev.trickuild`、Kotlin DSL、Gradle 9.3.1 Wrapper、Coreモジュール、診断タスクを維持して拡張しました。
 Daemon設定は、着手時のJDK 25指定を要件のJDK 21へ揃えています。

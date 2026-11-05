@@ -103,7 +103,7 @@ class MetadataFunctionalTest {
         )
         runner("jar").build()
         val values = metadata(projectDir)
-        assertEquals("", values.getProperty("CODE_NAME"))
+        assertEquals("Youngchun", values.getProperty("CODE_NAME"))
         assertFalse(values.containsKey("BUILD_NUMBER"))
         assertFalse(values.containsKey("PERSONALITY_SEED"))
         assertFalse(Files.readString(projectDir.resolve("build/generated/trickuild/generateTrickuildMetadata/java/TrickuildMetadata.java")).contains("PERSONALITY"))

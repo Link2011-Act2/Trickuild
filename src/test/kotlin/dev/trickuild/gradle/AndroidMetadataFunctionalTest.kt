@@ -73,6 +73,35 @@ class AndroidMetadataFunctionalTest {
         assertTrue(metadata("Debug").getProperty("BUILD_NUMBER").startsWith("Epica-v2.10.1-"))
         assertContains(Files.readString(projectDir.resolve("app/build/outputs/apk/debug/output-metadata.json")), "2.10.1-Beta2")
         verifyApk(debugApk(), metadata("Debug").getProperty("BUILD_NUMBER"))
+
+        // Exercise value-less Providers, custom fallbacks and cached variant task wiring.
+        projectDir.resolve("app/build.gradle.kts").toFile().appendText(
+            """
+
+            trickuild {
+                codename.set(providers.gradleProperty("fallbackTestCodename"))
+                fallbackCodename.set(providers.gradleProperty("fallbackTestName"))
+            }
+            """.trimIndent(),
+        )
+        repeat(2) { attempt ->
+            val fallback = runner(":app:assembleDebug", ":app:assembleRelease", "-PfallbackTestName=Independent").build()
+            if (attempt > 0) assertContains(fallback.output, "Configuration cache entry reused.")
+            listOf("Debug", "Release").forEach { variant ->
+                val values = metadata(variant)
+                assertEquals("Independent", values.getProperty("CODE_NAME"))
+                assertTrue(values.getProperty("BUILD_NUMBER").startsWith("Independent-d2.2.0-"))
+                assertEquals("GlyphBarty:2.2", values.getProperty("PERSONALITY_SEED"))
+                assertEquals("4", values.getProperty("PERSONALITY_NUMBER"))
+            }
+            assertEquals(metadata("Debug").getProperty("BUILD_NUMBER"), metadata("Release").getProperty("BUILD_NUMBER"))
+            verifyApk(debugApk(), metadata("Debug").getProperty("BUILD_NUMBER"))
+            verifyApk(projectDir.resolve("app/build/outputs/apk/release/app-release-unsigned.apk"), metadata("Release").getProperty("BUILD_NUMBER"))
+        }
+        runner(":app:assembleDebug").build()
+        assertEquals("Youngchun", metadata("Debug").getProperty("CODE_NAME"))
+        assertTrue(metadata("Debug").getProperty("BUILD_NUMBER").startsWith("Youngchun-d2.2.0-"))
+        verifyApk(debugApk(), metadata("Debug").getProperty("BUILD_NUMBER"))
     }
 
     private fun verifyApk(apk: Path, number: String) {

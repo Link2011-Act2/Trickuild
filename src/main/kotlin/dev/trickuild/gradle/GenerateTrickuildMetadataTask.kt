@@ -31,7 +31,7 @@ abstract class GenerateTrickuildMetadataTask : DefaultTask(), GeneratedMetadataO
     @get:Input abstract val enabledState: Property<Boolean>
     @get:Input abstract val buildNumberEnabled: Property<Boolean>
     @get:Input abstract val rouletteEnabled: Property<Boolean>
-    @get:Input @get:Optional abstract val codename: Property<String>
+    @get:Input abstract val codename: Property<String>
     @get:Input @get:Optional abstract val versionName: Property<String>
     @get:Input @get:Optional abstract val rouletteNamespace: Property<String>
     @get:Input abstract val hashLength: Property<Int>
@@ -65,7 +65,7 @@ abstract class GenerateTrickuildMetadataTask : DefaultTask(), GeneratedMetadataO
     private fun generateMetadata() {
         val buildEnabled = enabledState.get() && buildNumberEnabled.get()
         val rollEnabled = enabledState.get() && rouletteEnabled.get()
-        val name = codename.orNull.orEmpty()
+        val name = codename.get()
         val version = if (buildEnabled || rollEnabled) {
             VersionParser.parse(versionName.orNull ?: errorMessage("versionName is required; set trickuild.versionName or Android defaultConfig.versionName"))
         } else null

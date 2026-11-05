@@ -1,6 +1,7 @@
 package dev.trickuild.gradle
 
 import dev.trickuild.android.AndroidIntegration
+import dev.trickuild.core.CodenameResolver
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.plugins.JavaPluginExtension
@@ -11,6 +12,7 @@ class TrickuildPlugin : Plugin<Project> {
     override fun apply(project: Project) {
         val extension = project.extensions.create("trickuild", TrickuildExtension::class.java)
         extension.enabled.convention(true)
+        extension.fallbackCodename.convention(CodenameResolver.DEFAULT_FALLBACK)
         extension.metadataClassName.convention("TrickuildMetadata")
         extension.buildNumber.enabled.convention(true)
         extension.buildNumber.hashLength.convention(5)
@@ -24,6 +26,10 @@ class TrickuildPlugin : Plugin<Project> {
             project.rootProject.layout.projectDirectory.file("settings.gradle.kts"),
             project.rootProject.layout.projectDirectory.file("gradle/libs.versions.toml"),
         )
+        val effectiveCodename = extension.codename.orElse("")
+            .zip(extension.fallbackCodename.orElse(CodenameResolver.DEFAULT_FALLBACK)) { codename, fallback ->
+                CodenameResolver.resolve(codename, fallback)
+            }
         val clock = project.gradle.sharedServices.registerIfAbsent("trickuild-build-clock", BuildClockService::class.java) {}
 
         fun registerMetadata(name: String, packageName: Provider<String>, versionName: Provider<String>) =
@@ -33,7 +39,7 @@ class TrickuildPlugin : Plugin<Project> {
                 enabledState.set(extension.enabled)
                 buildNumberEnabled.set(extension.buildNumber.enabled)
                 rouletteEnabled.set(extension.roulette.enabled)
-                codename.set(extension.codename)
+                codename.set(effectiveCodename)
                 this.versionName.set(versionName)
                 rouletteNamespace.set(extension.roulette.namespace)
                 hashLength.set(extension.buildNumber.hashLength)
@@ -66,6 +72,7 @@ class TrickuildPlugin : Plugin<Project> {
             group = "trickuild"
             description = "Displays the current Trickuild configuration."
             enabledState.set(extension.enabled)
+            codename.set(effectiveCodename)
         }
     }
 }

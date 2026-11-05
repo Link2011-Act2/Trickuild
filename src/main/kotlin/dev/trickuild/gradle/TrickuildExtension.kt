@@ -9,6 +9,7 @@ import org.gradle.api.provider.Property
 abstract class TrickuildExtension @Inject constructor(objects: ObjectFactory) {
     abstract val enabled: Property<Boolean>
     abstract val codename: Property<String>
+    abstract val fallbackCodename: Property<String>
     abstract val versionName: Property<String>
     abstract val metadataPackage: Property<String>
     abstract val metadataClassName: Property<String>

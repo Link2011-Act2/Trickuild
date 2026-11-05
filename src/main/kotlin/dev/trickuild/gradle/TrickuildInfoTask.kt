@@ -12,8 +12,12 @@ abstract class TrickuildInfoTask : DefaultTask() {
     @get:Input
     abstract val enabledState: Property<Boolean>
 
+    @get:Input
+    abstract val codename: Property<String>
+
     @TaskAction
     fun showConfiguration() {
         logger.lifecycle(TrickuildConfiguration(enabledState.get()).statusMessage())
+        logger.lifecycle("Trickuild codename: ${codename.get()}")
     }
 }
